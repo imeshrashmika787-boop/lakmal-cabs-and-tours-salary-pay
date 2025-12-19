@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Driver & Owner Salary App</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{
+ --primary:#4f46e5; --success:#22c55e; --danger:#ef4444;
+ --bg:#f1f5f9; --card:#fff; --highlight:#eef2ff;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Poppins;background:var(--bg);padding:10px;}
+.hidden{display:none;}
+.card{
+ background:var(--card);
+ padding:20px;
+ border-radius:18px;
+ box-shadow:0 8px 25px rgba(0,0,0,0.08);
+ margin-bottom:16px;
+ transition: all .3s ease;
+}
+h3{margin-bottom:12px;color:#333;font-size:1.25rem;}
+button,input,select{
+ width:100%;
+ padding:12px;
+ border-radius:12px;
+ border:1px solid #e5e7eb;
+ margin-top:6px;
+ font-family:Poppins;
+ font-size:1rem;
+ transition: 0.3s;
+}
+button{background:var(--primary);color:#fff;border:none;font-weight:600;cursor:pointer;}
+button:hover{opacity:0.9;}
+button.danger{background:var(--danger);}
+.stat{
+ padding:12px;
+ border-radius:14px;
+ background:var(--highlight);
+ margin-bottom:10px;
+ font-size:.95rem;
+ font-weight:500;
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+}
+.stat b{color:var(--primary);}
+.table-wrapper{overflow-x:auto;}
+table{
+ width:100%;
+ border-collapse:collapse;
+ font-size:.85rem;
+ min-width:400px;
+}
+th,td{
+ padding:8px;
+ border-bottom:1px solid #e5e7eb;
+ text-align:left;
+}
+th{background:var(--highlight);position:sticky;top:0;}
+tr:hover{background:#f3f4f6;}
+.link{
+ color:var(--primary);
+ font-size:.9rem;
+ cursor:pointer;
+ margin-top:6px;
+ display:inline-block;
+ text-decoration:underline;
+}
+@media(max-width:768px){
+ .card{padding:16px;}
+ input,select,button{font-size:.95rem;padding:10px;}
+ h3{font-size:1.1rem;}
+ table{font-size:.8rem;}
+}
+@media(max-width:480px){
+ .card{padding:12px;}
+ input,select,button{font-size:.9rem;padding:8px;}
+ h3{font-size:1rem;}
+ table{font-size:.75rem;}
+ th,td{padding:6px;}
+ .stat{font-size:.85rem;padding:10px;}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginCard" class="card">
+<h3>Login</h3>
+<input id="loginUser" placeholder="Username">
+<input id="loginPass" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+<div class="link" onclick="showRegister()">Register as Driver</div>
+</div>
+
+<!-- REGISTER -->
+<div id="registerCard" class="card hidden">
+<h3>Driver Registration</h3>
+<input id="regName" placeholder="Driver Name">
+<input id="regUser" placeholder="Username">
+<input id="regPass" type="password" placeholder="Password">
+<input id="regPhone" placeholder="Phone (optional)">
+<button onclick="registerDriver()">Register</button>
+<div class="link" onclick="showLogin()">Back to Login</div>
+</div>
+
+<!-- OWNER DASHBOARD -->
+<div id="ownerDash" class="hidden">
+<div class="card">
+<h3>Owner Dashboard</h3>
+<div id="liveTime"></div>
+<div class="stat">Today Driver Salary: <b id="todayDriver">0</b></div>
+<div class="stat">Today Owner Income: <b id="todayOwner">0</b></div>
+<div class="stat">Trips Today: <b id="todayTrips">0</b></div>
+<button onclick="endDay()">End Today & Save</button>
+</div>
+
+<div class="card">
+<h3>Create Trip</h3>
+<input id="pick" placeholder="Pick location">
+<input id="drop" placeholder="Drop location">
+<input id="hire" type="number" placeholder="Hire price">
+<select id="tripDriver"></select>
+<button onclick="createTrip()">Add Trip</button>
+</div>
+
+<div class="card table-wrapper">
+<h3>Today History</h3>
+<table id="dayTable"></table>
+</div>
+
+<div class="card table-wrapper">
+<h3>Main History</h3>
+<table id="mainTable"></table>
+</div>
+
+<div class="card table-wrapper">
+<h3>Drivers</h3>
+<table id="driverTable"></table>
+</div>
+
+<div class="card">
+<h3>Trip Statistics</h3>
+<canvas id="tripChart" style="width:100%;max-width:600px"></canvas>
+</div>
+
+</div>
+
+<!-- DRIVER DASHBOARD -->
+<div id="driverDash" class="hidden">
+<div class="card">
+<h3>Driver Dashboard</h3>
+<div id="driverLive"></div>
+<div class="stat">Today Salary: <b id="driverToday">0</b></div>
+</div>
+
+<div class="card table-wrapper">
+<h3>Day by Day Salary</h3>
+<table id="driverHistory"></table>
+</div>
+</div>
+
+<script>
+const OWNER_USER="owner",OWNER_PASS="1234";
+const routeSalary={"Colombo-Airport":1000,"Matara-Airport":2000,"Matara-Colombo":2000,"Airport-Colombo":1000};
+
+let drivers=JSON.parse(localStorage.getItem("drivers")||"[]");
+let dayHistory=JSON.parse(localStorage.getItem("dayHistory")||"[]");
+let mainHistory=JSON.parse(localStorage.getItem("mainHistory")||"[]");
+let currentUser=null;
+
+function saveAll(){
+ localStorage.setItem("drivers",JSON.stringify(drivers));
+ localStorage.setItem("dayHistory",JSON.stringify(dayHistory));
+ localStorage.setItem("mainHistory",JSON.stringify(mainHistory));
+}
+
+// LOGIN / REGISTER UI
+function showRegister(){loginCard.classList.add("hidden"); registerCard.classList.remove("hidden");}
+function showLogin(){registerCard.classList.add("hidden"); loginCard.classList.remove("hidden");}
+
+// REGISTER DRIVER
+function registerDriver(){
+ const name=regName.value.trim();
+ const user=regUser.value.trim();
+ const pass=regPass.value;
+ const phone=regPhone.value.trim();
+ if(!name || !user || !pass){alert("Fill all required fields"); return;}
+ if(drivers.find(d=>d.user===user)){alert("Username already exists"); return;}
+ const id=Date.now();
+ drivers.push({id,name,user,pass,phone,trips:0});
+ saveAll();
+ alert("Driver registered successfully!");
+ showLogin();
+ regName.value=""; regUser.value=""; regPass.value=""; regPhone.value="";
+}
+
+// LOGIN
+function login(){
+ const u=loginUser.value,p=loginPass.value;
+ if(u===OWNER_USER && p===OWNER_PASS){
+   currentUser={role:"owner"};
+   loginCard.classList.add("hidden");
+   ownerDash.classList.remove("hidden");
+   renderOwner();
+   return;
+ }
+ const d=drivers.find(x=>x.user===u && x.pass===p);
+ if(d){
+   currentUser={role:"driver",id:d.id};
+   loginCard.classList.add("hidden");
+   driverDash.classList.remove("hidden");
+   renderDriver();
+ }else alert("Wrong login");
+}
+
+// CREATE TRIP
+function createTrip(){
+ const key=pick.value.toLowerCase()+"-"+drop.value.toLowerCase();
+ const salary=routeSalary[key]||0;
+ const hirePrice=Number(hire.value||0);
+ const d=drivers.find(x=>x.id==tripDriver.value);
+ const driverSalary=salary;
+ const ownerIncome=hirePrice-driverSalary;
+
+ dayHistory.push({
+   date:new Date().toLocaleDateString(),
+   time:new Date().toLocaleTimeString(),
+   driverId:d.id,driver:d.name,
+   route:key,driverSalary,ownerIncome,
+   paid:false
+ });
+ d.trips=(d.trips||0)+1;
+ saveAll(); renderOwner();
+}
+
+// OWNER DASHBOARD
+function renderOwner(){
+ document.getElementById("liveTime").innerText=new Date().toLocaleString();
+ tripDriver.innerHTML="";
+ drivers.forEach(d=>tripDriver.innerHTML+=`<option value="${d.id}">${d.name}</option>`);
+
+ let dSal=0,oSal=0;
+ dayHistory.forEach(r=>{dSal+=r.driverSalary;oSal+=r.ownerIncome});
+ todayDriver.innerText=dSal;
+ todayOwner.innerText=oSal;
+ todayTrips.innerText=dayHistory.length;
+
+ dayTable.innerHTML="<tr><th>Time</th><th>Driver</th><th>Route</th><th>D Salary</th><th>O Income</th><th>Paid</th><th>X</th></tr>";
+ dayHistory.forEach((r,i)=>{
+   dayTable.innerHTML+=`<tr style="background:${r.paid?'#d1fae5':'transparent'}">
+     <td>${r.time}</td>
+     <td>${r.driver}</td>
+     <td>${r.route}</td>
+     <td>${r.driverSalary}</td>
+     <td>${r.ownerIncome}</td>
+     <td><input type="checkbox" ${r.paid?'checked':''} onchange="togglePaid(${i},this.checked)"></td>
+     <td><button class="danger" onclick="delDay(${i})">X</button></td>
+   </tr>`;
+ });
+
+ mainTable.innerHTML="<tr><th>Date</th><th>Time</th><th>Driver</th><th>Route</th><th>D Salary</th><th>O Income</th><th>Paid</th><th>X</th></tr>";
+ mainHistory.forEach((day,dayIndex)=>{
+   day.records.forEach((r,tripIndex)=>{
+     mainTable.innerHTML+=`<tr style="background:${r.paid?'#d1fae5':'transparent'}">
+       <td>${day.date}</td>
+       <td>${r.time}</td>
+       <td>${r.driver}</td>
+       <td>${r.route}</td>
+       <td>${r.driverSalary}</td>
+       <td>${r.ownerIncome}</td>
+       <td><input type="checkbox" ${r.paid?'checked':''} onchange="toggleMainPaid(${dayIndex},${tripIndex},this.checked)"></td>
+       <td><button class="danger" onclick="delMain(${dayIndex},${tripIndex})">X</button></td>
+     </tr>`;
+   });
+ });
+
+ driverTable.innerHTML="<tr><th>Name</th><th>Phone</th><th>Trips</th><th>Remove</th></tr>";
+ drivers.forEach(d=>driverTable.innerHTML+=`<tr>
+   <td>${d.name}</td><td>${d.phone}</td><td>${d.trips||0}</td>
+   <td><button class="danger" onclick="removeDriver(${d.id})">Remove</button></td>
+   </tr>`);
+
+ renderTripChart();
+}
+
+function togglePaid(index, isPaid){dayHistory[index].paid=isPaid;saveAll();renderOwner();}
+function delDay(i){dayHistory.splice(i,1);saveAll();renderOwner();}
+function toggleMainPaid(dayIndex, tripIndex, isPaid){mainHistory[dayIndex].records[tripIndex].paid=isPaid;saveAll();renderOwner();}
+function delMain(dayIndex, tripIndex){if(confirm("Delete this trip?")){mainHistory[dayIndex].records.splice(tripIndex,1);if(mainHistory[dayIndex].records.length===0) mainHistory.splice(dayIndex,1);saveAll();renderOwner();}}
+function endDay(){if(!dayHistory.length){alert("No data");return;} if(!confirm("Are you sure you want to end the day?")) return; mainHistory.push({date:new Date().toLocaleDateString(),records:[...dayHistory]}); const tenMonthsAgo=new Date();tenMonthsAgo.setMonth(tenMonthsAgo.getMonth()-10); mainHistory=mainHistory.filter(d=>new Date(d.date)>=tenMonthsAgo); dayHistory=[]; saveAll(); renderOwner();}
+function removeDriver(id){if(confirm("Remove driver?")){drivers=drivers.filter(d=>d.id!==id);saveAll();renderOwner();}}
+function renderDriver(){const d=drivers.find(x=>x.id===currentUser.id);driverLive.innerText=new Date().toLocaleString(); let today=dayHistory.filter(r=>r.driverId===d.id).reduce((s,r)=>s+r.driverSalary,0);driverToday.innerText=today;driverHistory.innerHTML="<tr><th>Date</th><th>Salary</th></tr>";mainHistory.forEach(day=>{let total=day.records.filter(r=>r.driverId===d.id).reduce((s,r)=>s+r.driverSalary,0);if(total>0) driverHistory.innerHTML+=`<tr><td>${day.date}</td><td>${total}</td></tr>`;});}
+
+// Trip Chart
+function renderTripChart(){
+ const labels=drivers.map(d=>d.name);
+ const data=drivers.map(d=>dayHistory.filter(t=>t.driverId===d.id).length);
+ const ctx=document.getElementById('tripChart').getContext('2d');
+ if(window.tripChart) window.tripChart.destroy();
+ window.tripChart=new Chart(ctx,{
+   type:'bar',
+   data:{labels,datasets:[{label:'Trips Today',data,backgroundColor:'#4f46e5'}]},
+   options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}
+ });
+}
+
+setInterval(()=>{if(currentUser?.role==="owner")renderOwner(); if(currentUser?.role==="driver")renderDriver();},1000);
+</script>
+</body>
+</html>
+
